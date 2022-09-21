@@ -7,6 +7,7 @@ POSTGRES_URI=airflow:airflow@postgres.dns.podman/airflow
 POSTGRES_DB_URI=postgresql+psycopg2://${POSTGRES_URI}
 POSTGRE_CELERY_URI=db+postgresql://${POSTGRES_URI}
 REDIS_URI=redis://:@redis.dns.podman:6379/0
+FERNET_KEY=$(python scripts/fernet_generate.py)
 
 podman network create ${NETWORK_NAME}
 
@@ -49,10 +50,11 @@ podman run -d --pod airflow-init \
     -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${POSTGRES_DB_URI} \
     -e AIRFLOW__CELERY__RESULT_BACKEND=${POSTGRE_CELERY_URI} \
     -e AIRFLOW__CELERY__BROKER_URL=${REDIS_URI} \
-    -e AIRFLOW__CORE__FERNET_KEY='' \
+    -e AIRFLOW__CORE__FERNET_KEY=${FERNET_KEY} \
     -e AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION='true' \
-    -e AIRFLOW__CORE__LOAD_EXAMPLES='true' \
+    -e AIRFLOW__CORE__LOAD_EXMAPLES='false' \
     -e AIRFLOW__API__AUTH_BACKENDS='airflow.api.auth.backend.basic_auth' \
+    -e _PIP_ADDITIONAL_REQUIREMENTS="apache-airflow[statsd]" \
     -v ./src/dags:/opt/airflow/dags:z \
     -v ./scripts/config/airflow/plugins:/opt/airflow/plugins:z \
     --tmpfs /opt/airflow/logs:rw,size=787448k,mode=1777 \
@@ -73,10 +75,11 @@ podman run -d --pod airflow-init \
     -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${POSTGRES_DB_URI} \
     -e AIRFLOW__CELERY__RESULT_BACKEND=${POSTGRE_CELERY_URI} \
     -e AIRFLOW__CELERY__BROKER_URL=${REDIS_URI} \
-    -e AIRFLOW__CORE__FERNET_KEY='' \
+    -e AIRFLOW__CORE__FERNET_KEY=${FERNET_KEY} \
     -e AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION='true' \
-    -e AIRFLOW__CORE__LOAD_EXAMPLES='true' \
+    -e AIRFLOW__CORE__LOAD_EXMAPLES='false' \
     -e AIRFLOW__API__AUTH_BACKENDS='airflow.api.auth.backend.basic_auth' \
+    -e _PIP_ADDITIONAL_REQUIREMENTS="apache-airflow[statsd]" \
     -v ./src/dags:/opt/airflow/dags:z \
     -v ./src/airflow.cfg:/opt/airflow/airflow.cfg:z \
     -v ./scripts/config/airflow/plugins:/opt/airflow/plugins:z \
@@ -94,11 +97,12 @@ podman run -d --pod airflow-ui \
     -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${POSTGRES_DB_URI} \
     -e AIRFLOW__CELERY__RESULT_BACKEND=${POSTGRE_CELERY_URI} \
     -e AIRFLOW__CELERY__BROKER_URL=${REDIS_URI} \
-    -e AIRFLOW__CORE__FERNET_KEY='' \
+    -e AIRFLOW__CORE__FERNET_KEY=${FERNET_KEY} \
     -e AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION='true' \
     -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
     -e AIRFLOW__API__AUTH_BACKENDS='airflow.api.auth.backend.basic_auth' \
     -e AIRFLOW__WEBSERVER__RBAC=False \
+    -e _PIP_ADDITIONAL_REQUIREMENTS="apache-airflow[statsd]" \
     -v ./src/dags:/opt/airflow/dags:z \
     -v ./src/airflow.cfg:/opt/airflow/airflow.cfg:z \
     -v ./scripts/config/airflow/plugins:/opt/airflow/plugins:z \
@@ -118,11 +122,12 @@ podman run -d --pod airflow-worker-1 \
     -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${POSTGRES_DB_URI} \
     -e AIRFLOW__CELERY__RESULT_BACKEND=${POSTGRE_CELERY_URI} \
     -e AIRFLOW__CELERY__BROKER_URL=${REDIS_URI} \
-    -e AIRFLOW__CORE__FERNET_KEY='' \
+    -e AIRFLOW__CORE__FERNET_KEY=${FERNET_KEY} \
     -e AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION='true' \
-    -e AIRFLOW__CORE__LOAD_EXAMPLES='true' \
+    -e AIRFLOW__CORE__LOAD_EXMAPLES='false' \
     -e AIRFLOW__API__AUTH_BACKENDS='airflow.api.auth.backend.basic_auth' \
     -e AIRFLOW__WEBSERVER__RBAC=False \
+    -e _PIP_ADDITIONAL_REQUIREMENTS="apache-airflow[statsd]" \
     -v ./src/dags:/opt/airflow/dags:z \
     -v ./src/airflow.cfg:/opt/airflow/airflow.cfg:z \
     -v ./scripts/config/airflow/plugins:/opt/airflow/plugins:z \
@@ -140,15 +145,30 @@ podman run -d --pod celery-flower \
     -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=${POSTGRES_DB_URI} \
     -e AIRFLOW__CELERY__RESULT_BACKEND=${POSTGRE_CELERY_URI} \
     -e AIRFLOW__CELERY__BROKER_URL=${REDIS_URI} \
-    -e AIRFLOW__CORE__FERNET_KEY='' \
+    -e AIRFLOW__CORE__FERNET_KEY=${FERNET_KEY} \
     -e AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION='true' \
-    -e AIRFLOW__CORE__LOAD_EXAMPLES='true' \
+    -e AIRFLOW__CORE__LOAD_EXMAPLES='false' \
     -e AIRFLOW__API__AUTH_BACKENDS='airflow.api.auth.backend.basic_auth' \
     -e AIRFLOW__WEBSERVER__RBAC=False \
+    -e _PIP_ADDITIONAL_REQUIREMENTS="apache-airflow[statsd]" \
     -v ./src/dags:/opt/airflow/dags:z \
     -v ./src/airflow.cfg:/opt/airflow/airflow.cfg:z \
     -v ./scripts/config/airflow/plugins:/opt/airflow/plugins:z \
     --tmpfs /opt/airflow/logs:rw,size=787448k,mode=1777 \
     docker.io/apache/airflow \
-    bash -c "celery flower"
-# TODO: create prometheus statsd adapter
+    celery flower
+
+podman pod create \
+    --network=${NETWORK_NAME} \
+    -n statsd_export \
+    -p 9102:9102 \
+    -p 9125:9125 \
+    -p 9125:9125/udp \
+    -p 9090:9090
+
+podman run -d --pod statsd_export \
+    docker.io/prom/statsd-exporter
+
+podman run -d --pod statsd_export \
+    -v ./scripts/prometheus.yml:/etc/prometheus/prometheus.yml:z \
+    prom/prometheus
